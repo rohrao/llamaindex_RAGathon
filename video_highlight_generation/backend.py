@@ -2,10 +2,10 @@
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.editor import concatenate_videoclips
 import os
 from typing import List, Tuple
+import imageio
+import numpy as np
 
 app = FastAPI()
 
@@ -22,13 +22,16 @@ def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
     clips = []
 
     for start_time, end_time in segments:
-        clip = VideoFileClip(input_file).subclip(start_time, end_time)
+        start_time = int(float(start_time) * 30)  # assuming 30 fps
+        end_time = int(float(end_time) * 30)  # assuming 30 fps
+
+        video = imageio.get_reader(input_file, 'ffmpeg')
+        frames = [video.get_data(i) for i in range(start_time, end_time)]
+        clip = imageio.mimsave('<bytes>', frames, 'mp4', fps=30)
         clips.append(clip)
 
-    final_clip = concatenate_videoclips(clips)
-    
     output_file = "output.mp4"
-    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+    imageio.mimsave(output_file, clips, 'mp4', fps=30)
 
     return output_file
 
@@ -39,7 +42,7 @@ async def process_video(input_file: UploadFile = File(...)) -> dict:
         with open(input_file_path, "wb") as f:
             f.write(input_file.file.read())
 
-        time_ranges = [("00:01:00", "00:03:23"), ("00:08:00", "00:10:27"), ("00:32:09", "00:42:09")]
+        time_ranges = [("60", "203"), ("480", "627"), ("1929", "2589")]  # in seconds
         output_file = extract_segments(input_file_path, time_ranges)
 
         return {"status": "success", "message": "Video processed successfully", "output_file": output_file}
