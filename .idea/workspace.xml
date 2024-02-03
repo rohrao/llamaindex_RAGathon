@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d91c53a0-1100-4fe1-8caa-bbd5857eb108" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/video_highlight_generation/backend.py" beforeDir="false" afterPath="$PROJECT_DIR$/video_highlight_generation/backend.py" afterDir="false" />
-    </list>
+    <list default="true" id="d91c53a0-1100-4fe1-8caa-bbd5857eb108" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -80,48 +76,7 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
-  <component name="RunManager" selected="Python.streamlit">
-    <configuration name="streamlit" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
-      <module name="llamaindex_RAGathon" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="SDK_NAME" value="Python 3.11 (llamaindex_RAGathon)" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/video_highlight_generation" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="streamlit" />
-      <option name="PARAMETERS" value="run frontend.py" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="true" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="backend" type="Python.FastAPI">
-      <option name="additionalOptions" value="--reload --loop uvloop --port 8000" />
-      <option name="file" value="$PROJECT_DIR$/video_highlight_generation/backend.py" />
-      <module name="llamaindex_RAGathon" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="$PROJECT_DIR$/venv/bin/python" />
-      <option name="SDK_NAME" value="Python 3.11 (llamaindex_RAGathon)" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="launchJavascriptDebuger" value="false" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="FastAPI.backend">
     <list>
       <item itemvalue="FastAPI.backend" />
       <item itemvalue="Python.streamlit" />
@@ -144,7 +99,7 @@
       <updated>1703024860420</updated>
       <workItem from="1706991005685" duration="216000" />
       <workItem from="1706991226665" duration="807000" />
-      <workItem from="1706993484072" duration="3771000" />
+      <workItem from="1706993484072" duration="3886000" />
     </task>
     <servers />
   </component>
