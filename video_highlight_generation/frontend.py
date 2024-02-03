@@ -1,48 +1,37 @@
-# main.py
+# streamlit_app.py
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.editor import concatenate_videoclips
-import os
-from typing import List, Tuple
+import streamlit as st
+import requests
+import cv2
+import numpy as np
+from io import BytesIO
 
-app = FastAPI()
+st.title("Video Cropper App")
 
-origins = ["http://localhost", "http://localhost:3000"]  # Add the frontend URL here
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+uploaded_file = st.file_uploader("Upload a video", type=["mp4"])
 
-def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
-    clips = []
+if uploaded_file:
+    st.video(uploaded_file)
 
-    for start_time, end_time in segments:
-        clip = VideoFileClip(input_file).subclip(start_time, end_time)
-        clips.append(clip)
+    if st.button("Process Video"):
+        files = {"file": uploaded_file}
+        response = requests.post("http://localhost:8000/process_video", files=files)
 
-    final_clip = concatenate_videoclips(clips)
-    
-    output_file = "output.mp4"
-    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+        if response.status_code == 200:
+            st.success("Video processed successfully!")
 
-    return output_file
+            # Display the processed video using OpenCV
+            output_file = response.json()["output_file"]
+            processed_video = cv2.VideoCapture(output_file)
+            
+            while True:
+                ret, frame = processed_video.read()
+                if not ret:
+                    break
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                st.image(frame, channels="RGB", use_column_width=True)
 
-@app.post("/process_video")
-async def process_video(input_file: UploadFile = File(...)) -> dict:
-    try:
-        input_file_path = f"uploads/{input_file.filename}"
-        with open(input_file_path, "wb") as f:
-            f.write(input_file.file.read())
+            processed_video.release()
 
-        time_ranges = [("00:01:00", "00:03:23"), ("00:08:00", "00:10:27"), ("00:32:09", "00:42:09")]
-        output_file = extract_segments(input_file_path, time_ranges)
-
-        return {"status": "success", "message": "Video processed successfully", "output_file": output_file}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        else:
+            st.error("Error processing video. Please try again.")
