@@ -94,7 +94,9 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
+
     with buffer_lock:
+        
         buffercontainer.empty()
         # get the new summary
         current_img = buffer["current_img"]
@@ -110,15 +112,20 @@ while webrtc_ctx.state.playing:
             try:
                 buffer["summary"] += next(buffer["summarization_stream"])
                 buffercontainer.write(buffer["summary"])
-                currenttz = pytz.timezone("America/Los_Angeles") 
-                currenttime = datetime.now(currenttz)
-                currenttimestamp = currenttime.strftime("%Y-%m-%d %H:%M:%S.%f")
-                metadata = {'tz': currenttimestamp}
-                ingest_pipeline_astra_db(buffer["summary"], metadata=metadata, _async=False, collection_name='test_collection')
+
             except StopIteration:
                 pass
         if current_img is not None:
             container.image(current_img, channels="RGB")
+
+    if len(buffer['summary'])>1024:
+        currenttz = pytz.timezone("America/Los_Angeles") 
+        currenttime = datetime.now(currenttz)
+        currenttimestamp = currenttime.strftime("%Y-%m-%d %H:%M:%S.%f")
+        metadata = {'tz': currenttimestamp}
+        ingest_pipeline_astra_db(buffer["summary"], metadata=metadata, _async=False, collection_name='test_collection',run_async=True)
+        st.write(buffer['summary'])
+        buffer['summary']=st.empty
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
