@@ -8,7 +8,10 @@ from llm import create_llm
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
-
+import json
+import requests
+from datetime import datetime
+import os
 class LLMClient:
     def __init__(self, model_name="mixtral_8x7b", model_type="NVIDIA"):
         self.llm = create_llm(model_name, model_type)
@@ -36,8 +39,17 @@ st.sidebar.title("NeVA-22B Live Video Stream")
 video_source = st.sidebar.selectbox("Select video source", ["Webcam", "YouTube"])
 youtube_url = st.sidebar.text_input("Enter YouTube video URL", "")
 
+visual_model_select = st.sidebar.selectbox("Select Multi Model",['llava','neva'])
+
 # NeVA-22B model initialization
-neva_22b = LLMClient(model_name="neva_22b")
+if visual_model_select == 'neva':
+    model = LLMClient(model_name="neva_22b")
+elif visual_model_select == 'llava':
+    # llava = LLMClient(model_name="llava")
+    print("run in cli - ollama run llava")
+else:
+    st.error("Error: Unable to load multi model.")
+    st.stop()
 
 # Function to get frames from the video stream
 def get_frame(video_source):
@@ -61,15 +73,47 @@ def get_frame(video_source):
 # Function to invoke NeVA-22B using LLMClient
 def multimodal_invoke(b64_string):
     # Invoke NeVA-22B model using LLMClient
-    response = neva_22b.multimodal_invoke(b64_string)
+    response = model.multimodal_invoke(b64_string)
 
     # Update session state with the result
     st.session_state.image_query = response.content
 
+def llava_invoke(bas64_image,previous_results=None):
+    url = "http://localhost:11434/api/generate"
+    if previous_results is not None and previous_results!="\n":
+        prompt = f"""
+            What changed from previous summary
+            previous summary = {previous_results}
+            only describe what changed in short 3 lines and ensure it is short,
+            if nothing changed then responde as None
+            """ 
+    else:
+        prompt = "Tell me about this image in short 3 lines, ensure it is short"
+    print(prompt)
+    payload = {
+        "model": "llava",
+        "prompt": prompt,
+        "stream": False,
+        "images": [bas64_image],
+        "options": {"temperature": 0, "top_p": 0.1, "top_k": 100},
+    }
+    # print(payload)
+    response = requests.post(url,data=json.dumps(payload))
+    response = json.loads(response.text)['response']
+    if response.lower() not in ["none", "nothing"] or "nothing" not in response.lower() or "no text visible" not in response.lower():
+        st.session_state.image_query = response
+        image_summary.append(st.session_state.image_query)
+        st.write(st.session_state.image_query)
+    # return json.loads(response.text)['response']
+
+
 # Main Streamlit app
 frame_interval = 5  # seconds
 video_frame = st.empty()
-
+image_summary  =[]
+save_location = 'live_images/'
+if not os.path.exists(save_location):
+    os.makedirs(save_location)
 # Initialize frame_counter in session state
 if "frame_counter" not in st.session_state:
     st.session_state.frame_counter = 0
@@ -86,6 +130,11 @@ while True:
         if st.session_state.frame_counter % frame_interval == 0:
             # Convert frame to Image
             pil_image = Image.fromarray(frame.astype('uint8'), 'RGB')
+            # save this image with timestamp as name
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            # Save the image with the timestamp as the filename
+            filename = f"{save_location}/{timestamp}.jpg"
+            pil_image.save(filename)
 
             # Save the Image to a BytesIO object
             buffered = BytesIO()
@@ -95,7 +144,16 @@ while True:
             b64_string = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
             # Invoke NeVA-22B model using the modified function
-            multimodal_invoke(b64_string)
-            st.write(st.session_state.image_query)
+            if visual_model_select=='neva':
+                multimodal_invoke(b64_string)
+            elif visual_model_select=='llava':
+                if len(image_summary)>0:
+                    previous_results = '/n'.join(image_summary[:-3])
+                    llava_invoke(b64_string,previous_results)
+                else:
+                    llava_invoke(b64_string)
+                
+            
+            
         st.session_state.frame_counter += 1
 
