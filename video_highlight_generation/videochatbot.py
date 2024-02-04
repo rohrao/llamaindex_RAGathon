@@ -1,12 +1,16 @@
 import os
+from typing import Optional
 
 from langchain.agents.format_scratchpad import format_log_to_messages
 from langchain.agents.json_chat.prompt import TEMPLATE_TOOL_RESPONSE
 from langchain.agents.output_parsers import JSONAgentOutputParser
+from langchain.output_parsers import PydanticOutputParser
+from langchain_core.callbacks import CallbackManagerForToolRun, AsyncCallbackManagerForToolRun
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, PromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+from langchain_core.tools import BaseTool
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel, Field
 
 SYSTEM_PROMPT = 'Assistant is a large language model with access to Tools.  Assistant should prioritize using a Tool to get up-to-date information.\n\nAssistant is designed to be able to assist with a wide range of tasks, from answering simple questions to providing in-depth explanations and discussions on a wide range of topics. As a language model, Assistant is able to generate human-like text based on the input it receives, allowing it to engage in natural-sounding conversations and provide responses that are coherent and relevant to the topic at hand.\n\nAssistant is constantly learning and improving, and its capabilities are constantly evolving. It is able to process and understand large amounts of text, and can use this knowledge to provide accurate and informative responses to a wide range of questions. Additionally, Assistant is able to generate its own text based on the input it receives, allowing it to engage in discussions and provide explanations and descriptions on a wide range of topics.\n\nOverall, Assistant is a powerful system that can help with a wide range of tasks and provide valuable insights and information on a wide range of topics. Whether you need help with a specific question or just want to have a conversation about a particular topic, Assistant is here to assist.'
 FORMAT_PROMPT = 'TOOLS\n------\nAssistant can ask the user to use tools to look up information that may be helpful in answering the users original question. The tools the human can use are:\n\n{tools}\n\nRESPONSE FORMAT INSTRUCTIONS\n----------------------------\n\nWhen responding to me, please output a response in one of two formats:\n\n**Option 1:**\nUse this if you want the human to use a tool.\nMarkdown code snippet formatted in the following schema:\n\n```json\n{{\n    "action": string, \\ The action to take. Must be one of {tool_names}\n    "action_input": string \\ The input to the action\n}}\n```\n\n**Option #2:**\nUse this if you want to respond directly to the human. Markdown code snippet formatted in the following schema:\n\n```json\n{{\n    "action": "Final Answer",\n    "action_input": string \\ You should put what you want to return to use here\n}}\n```\n\nUSER\'S INPUT\n--------------------\nHere is the user\'s input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):\n\n{input}'
@@ -46,3 +50,30 @@ agent = (
 )
 
 # TODO define tools (it should interact with the DB
+class ToolInput(BaseModel):
+    collection: str = Field("",description="where to retrieve from")
+    query: str = Field('',description='what to search for')
+
+parser = PydanticOutputParser(pydantic_object=ToolInput)
+
+class AsteraTool(BaseTool):
+    name = 'Video_Information'
+    description = "useful to get more information about the video in context.  Use this tool to get more an audio or image summary of the video.  Action input should be the name of the video and the query.  \nAn example if the video is Apple_Keynote.mp4, Action Input should be: {'collection': 'Apple_Keynote.mp4', 'query': 'video highlights'}"
+
+    def _run(self, query: str, run_manager: Optional[CallbackManagerForToolRun] = None) -> str:
+        """Use the DB."""
+        try:
+            input = parser.invoke(query)
+        except Exception as ex:
+            print('default case, malformed input')  # todo add a recovery scenario
+            print(ex)
+        raise NotImplementedError("custom base tool is not implemented!")
+
+    async def _arun(self, query: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None) -> str:
+        """Use the DB."""
+        try:
+            input = parser.invoke(query)
+        except Exception as ex:
+            print('default case, malformed input')  # todo add a recovery scenario
+            print(ex)
+        raise NotImplementedError("custom base tool is not implemented!")
