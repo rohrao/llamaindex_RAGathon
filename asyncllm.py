@@ -34,7 +34,7 @@ def add_text_to_image(image, text, font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, 
     # Add text to the image
     cv2.putText(image, text, position, font, font_scale, color, thickness)
 
-def process_frame_neva(frame):
+def process_frame_neva(frame, input_summary=""):
     # Convert the av.VideoFrame to a NumPy array
     img = frame.to_ndarray(format="bgr24")
 
@@ -48,7 +48,7 @@ def process_frame_neva(frame):
     b64_string = base64.b64encode(buffered.getvalue()).decode("utf-8")
     
     # Invoke NeVA-22B model using the modified function
-    image_description_stream = neva_22b.streaming_multimodal_invoke("Describe what is happening in this image in a single sentence.", b64_string)
+    image_description_stream = neva_22b.streaming_multimodal_invoke(f"Continue describing what is happening in this image in a single sentence. Always highlight if something new is happening in the scene. Do not provide any more information if it is not needed. The summary of events thus far is as follows: {input_summary}", b64_string)
     
     # Update the buffer data stream
     with buffer_lock:
@@ -66,7 +66,7 @@ def video_frame_callback(frame):
     last_api_call_time = buffer.get("last_api_call_time", 0)
     elapsed_time = current_time - last_api_call_time
     if elapsed_time > 5:
-        process_frame_neva(frame)
+        process_frame_neva(frame, buffer["summary"])
         with buffer_lock:
             buffer["current_buffer"] = []
             buffer["last_api_call_time"] = current_time
