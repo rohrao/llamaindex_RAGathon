@@ -3,10 +3,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.editor import concatenate_videoclips
 import os
-from typing import List, Tuple, Annotated
-import imageio
-import numpy as np
+from typing import List, Tuple, Any
 
 app = FastAPI()
 
@@ -19,41 +19,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
+
+def extract_segments(input_file: Any, segments: List[Tuple[str, str]]) -> str:
     clips = []
 
     for start_time, end_time in segments:
-        start_time = int(float(start_time) * 30)  # assuming 30 fps
-        end_time = int(float(end_time) * 30)  # assuming 30 fps
-
-        video = imageio.get_reader(input_file, 'ffmpeg')
-        frames = [video.get_data(i) for i in range(start_time, end_time)]
-        clip = imageio.mimsave('<bytes>', frames, 'mp4', fps=30)
+        clip = VideoFileClip(input_file).subclip(start_time, end_time)
         clips.append(clip)
 
+    final_clip = concatenate_videoclips(clips)
+
     output_file = "output.mp4"
-    imageio.mimsave(output_file, clips, 'mp4', fps=30)
+    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
 
     return output_file
 
+
 @app.post("/process_video")
-# async def process_video(input_file: UploadFile = File(...)) -> dict:
-# async def process_video(data: dict) -> dict:
-async def process_video(input_file: Annotated[UploadFile, File()]) -> dict:
+async def process_video(input_file: UploadFile = File(...)) -> dict:
     try:
-        # input_file = data.get('file')
         input_file_path = f"uploads/{input_file.filename}"
         base_path = Path(__file__).parent
-        input_file_path = Path.joinpath(base_path, 'test_video.mp4')
+        file_path = Path.joinpath(base_path, input_file_path)
         # df = pd.read_excel(file_path)
-        with open(input_file_path, "wb") as f:
+        with open(file_path, "wb") as f:
             f.write(input_file.file.read())
 
-        time_ranges = [("60", "100"), ("140", "220"), ("260", "300")]  # in seconds
-        output_file = extract_segments(str(input_file_path), time_ranges)
+        time_ranges = [("00:01:00", "00:01:23"), ("00:02:00", "00:02:08"), ("00:02:34", "00:02:43")]
+        output_file = extract_segments(input_file_path, time_ranges)
 
         return {"status": "success", "message": "Video processed successfully", "output_file": output_file}
 
     except Exception as e:
-        print(e)
         raise HTTPException(status_code=500, detail=str(e))
