@@ -45,6 +45,7 @@ async def process_video(input_file: UploadFile = File(...)) -> FileResponse:
             f.write(input_file.file.read())
 
         time_ranges = [("00:01:00", "00:01:23"), ("00:02:00", "00:02:08"), ("00:02:34", "00:02:43")]
+        # TODO integrate with ASR to get the time slices here
         video_file = extract_segments(input_file_path, time_ranges)
         return FileResponse(video_file, media_type='video/mp4')
     except Exception as e:
