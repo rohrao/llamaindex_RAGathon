@@ -2,7 +2,7 @@ import threading
 
 import pydub
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
-from streamlit_webrtc import webrtc_streamer
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
 import streamlit as st
 from llm import LLMClient
 import time
@@ -117,6 +117,7 @@ def handle_queue_empty(sound_chunk):
 
 webrtc_ctx = webrtc_streamer(
     key="example",
+    mode=WebRtcMode.SENDONLY,
     video_frame_callback=video_frame_callback,
     audio_receiver_size=1024,
     media_stream_constraints={"video": True, "audio": True},    
@@ -137,6 +138,7 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
+    sound_chunk = pydub.AudioSegment.empty()
     if webrtc_ctx.audio_receiver:
         try:
             audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=3)
@@ -146,7 +148,7 @@ while webrtc_ctx.state.playing:
             continue
         
         # done to flush out old sound chunks and avoid concatenation and whisper-delays
-        sound_chunk = pydub.AudioSegment.empty()
+        
         print("audio_frames=",audio_frames)
         for audio_frame in audio_frames:
             # this causes continuous concatenation
