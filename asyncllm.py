@@ -30,9 +30,15 @@ if "summary" not in st.session_state:
 neva_22b = LLMClient(model_name="neva_22b")
 mixtral = LLMClient(model_name="mixtral_8x7b")
 
-buffer = {"current_img": None, "data_stream": None, "current_buffer": [], "summarization_stream": None, "summary": "", "last_api_call_time": 0}
+buffer = {"current_img": None, 
+          "data_stream": None,
+            "current_buffer": [], 
+            "summarization_stream": None, 
+            "summary": "", "last_api_call_time": 0,'ingest_summary':""}
 buffer_lock = threading.Lock()
 url = "http://localhost:8000/ingest"
+start_tz = time.time()
+start_time = time.time()
 
 
 
@@ -67,7 +73,7 @@ def process_frame_neva(frame, input_summary=""):
     with buffer_lock:
         buffer["data_stream"] = image_description_stream
         # Invoke summarization model on modified function
-        summarization_stream = mixtral.chat_with_prompt(system_prompt="Your task is to summarize the content of a video stream. You will be given the summarization so far, and the new content to be incorporated. Provide a single paragraph summary as a response. Do not reply with anything else. If the input is empty, respond with nothing.", prompt=" ".join(buffer["current_buffer"]))
+        summarization_stream = mixtral.chat_with_prompt(system_prompt="Your task is to summarize the content of a video stream. You will be given the summarization so far, and the new content to be incorporated. Provide only a single paragraph summary as a response. Do not reply with anything else.", prompt=" ".join(buffer["current_buffer"]))
         buffer["summarization_stream"] = summarization_stream
 
 def video_frame_callback(frame):
@@ -106,6 +112,7 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
+    st.session_state.video_on = True
     with buffer_lock:
         
         buffercontainer.empty()
