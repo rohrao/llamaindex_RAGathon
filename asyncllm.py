@@ -7,6 +7,9 @@ from PIL import Image
 from io import BytesIO
 import base64
 import cv2
+from async_ingest import ingest_pipeline_astra_db
+import pytz
+from datetime import datetime
 
 # Streamlit configuration
 st.set_page_config(layout="wide")
@@ -95,6 +98,11 @@ while webrtc_ctx.state.playing:
             try:
                 buffer["summary"] += next(buffer["summarization_stream"])
                 buffercontainer.write(buffer["summary"])
+                currenttz = pytz.timezone("America/Los_Angeles") 
+                currenttime = datetime.now(currenttz)
+                currenttimestamp = currenttime.strftime("%Y-%m-%d %H:%M:%S.%f")
+                metadata = {'tz': currenttimestamp}
+                ingest_pipeline_astra_db(buffer["summary"], metadata=metadata, _async=False, collection_name='test_collection')
             except StopIteration:
                 pass
         if current_img is not None:
