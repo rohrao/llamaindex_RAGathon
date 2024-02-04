@@ -10,4 +10,4 @@
 __pycache__/
 */__pycache__/
 # pycache files
-
+*.wav
