@@ -1,4 +1,7 @@
 import threading
+
+import pydub
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from streamlit_webrtc import webrtc_streamer
 import streamlit as st
 from llm import LLMClient
@@ -57,7 +60,7 @@ def process_frame_neva(frame):
 def video_frame_callback(frame):
     img = frame.to_ndarray(format="bgr24")
     with buffer_lock:
-        buffer["current_img"] = img
+        buffer["current_img"] = frame.to_ndarray(format="rgb24")
 
     current_time = time.time()
     last_api_call_time = buffer.get("last_api_call_time", 0)
@@ -80,11 +83,20 @@ with col1:
 with col2:
     buffercontainer = st.empty()
 
+# Initializing streamlit session states
+if "audio_buffer" not in st.session_state:
+    st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
+if "video_capturing" not in st.session_state:
+    st.session_state["video_capturing"] = []
+
+# video_frames = []
 while webrtc_ctx.state.playing:
     with buffer_lock:
         buffercontainer.empty()
         # get the new summary
         current_img = buffer["current_img"]
+        if current_img is not None:
+            st.session_state["video_capturing"].append(current_img)
         if buffer["data_stream"]:
             try:
                 buffer["current_buffer"].append(next(buffer["data_stream"]).content)
@@ -100,3 +112,10 @@ while webrtc_ctx.state.playing:
         if current_img is not None:
             container.image(current_img, channels="BGR")
     time.sleep(0.1)
+audio_buffer = st.session_state["audio_buffer"]
+video_frames = st.session_state['video_capturing']
+if len(video_frames) > 0:
+        clip = ImageSequenceClip(video_frames, fps=30)
+        # Save the video
+        clip.write_videofile("recorded_video.mp4", codec="libx264", fps=30)
+        st.info("Video saved as 'recorded_video.mp4'")
