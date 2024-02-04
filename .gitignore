@@ -1,0 +1,7 @@
+.DS_Store
+.DS_Store/
+# Mac and PyCharm files
+__pycache__/
+*/__pycache__/
+# pycache files
+
