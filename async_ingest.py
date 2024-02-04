@@ -17,6 +17,7 @@ from llama_index import set_global_service_context
 from llama_index.llms import LangChainLLM
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 import os
+import asyncio
 
 token = os.environ['token']
 api_endpoint = os.environ['api_endpoint']
@@ -88,12 +89,14 @@ def ingest_pipeline_astra_db(text,metadata=None,_async=False,collection_name=Non
         pipeline.arun(doc)
     else:
         if _async:
+            # loop = asyncio.get_event_loop()
             pipeline.arun(documents=doc,num_workers=4)
         else:
             nodes = pipeline.run(documents=doc,num_workers=1)
 
     
     # pipeline.load("./pipeline_storage")
+
 
 
 if __name__=='__main__':
