@@ -8,4 +8,12 @@ fastapi~=0.109.1
 uvicorn[standard]~=0.27.0
 imageio~=2.33.1
 python-multipart
-moviepy
+moviepy~=1.0.3
+openai-whisper
+torch~=2.2.0
+transformers~=4.37.2
+pydub~=0.25.1
+httpx~=0.25.2
+pydantic~=2.6.0
+av~=11.0.0
+starlette~=0.35.1

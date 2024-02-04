@@ -137,10 +137,11 @@ if "audio_buffer" not in st.session_state:
 if "video_capturing" not in st.session_state:
     st.session_state["video_capturing"] = []
 
+audio_transcript_output = st.empty()
 # video_frames = []
 while webrtc_ctx.state.playing:
     text_payload = " ".join(audio_chunks_buffer)
-    st.write("Audio transcription = ",text_payload)
+    audio_transcript_output.write(text_payload)
     sound_chunk = pydub.AudioSegment.empty()
     if webrtc_ctx.audio_receiver:
         try:
