@@ -110,7 +110,7 @@ while webrtc_ctx.state.playing:
             except StopIteration:
                 pass
         if current_img is not None:
-            container.image(current_img, channels="BGR")
+            container.image(current_img, channels="RGB")
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
