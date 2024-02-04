@@ -69,16 +69,25 @@ def create_pipeline_astra_db(llm_type='nvidia',embed_model='local',collection_na
     #     transformations=[text_splitter, embed_model],
     #     vector_store=astra_db_store)
 
-def ingest_pipeline_astra_db(text):
-    pipeline = create_pipeline_astra_db(llm_type='nvidia')
+def ingest_pipeline_astra_db(text,metadata=None,_async=False,collection_name=None):
+    if collection_name is not None:
+        pipeline = create_pipeline_astra_db(llm_type='nvidia',collection_name=collection_name)    
+    else:
+        pipeline = create_pipeline_astra_db(llm_type='nvidia')
     print('Pipeline_loaded')
     # save
     # pipeline.persist("./pipeline_storage")
 
     # load and restore state
     # will run instantly due to the cache
-    
-    nodes = pipeline.run(documents=[Document(text=text)])
+    if metadata:
+        doc = [Document(text=text,metadata=metadata)]
+    else:
+        doc = [Document(text=text)]
+    if _async:
+        pipeline.arun(documents=doc,num_workers=4)
+    else:
+        nodes = pipeline.run(documents=doc,num_workers=1)
     # pipeline.load("./pipeline_storage")
 
 
