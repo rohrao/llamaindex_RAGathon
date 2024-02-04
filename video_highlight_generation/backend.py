@@ -1,11 +1,12 @@
-# main.py
+from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from moviepy.editor import concatenate_videoclips
-import os
-from typing import List, Tuple
+from typing import List, Tuple, Any
+
+from starlette.responses import FileResponse
 
 app = FastAPI()
 
@@ -18,7 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
+
+def extract_segments(input_file: Any, segments: List[Tuple[str, str]]) -> str:
     clips = []
 
     for start_time, end_time in segments:
@@ -26,23 +28,24 @@ def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
         clips.append(clip)
 
     final_clip = concatenate_videoclips(clips)
-    
+
     output_file = "output.mp4"
-    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+    video = final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
 
     return output_file
 
+
 @app.post("/process_video")
-async def process_video(input_file: UploadFile = File(...)) -> dict:
+async def process_video(input_file: UploadFile = File(...)) -> FileResponse:
     try:
         input_file_path = f"uploads/{input_file.filename}"
-        with open(input_file_path, "wb") as f:
+        base_path = Path(__file__).parent
+        file_path = Path.joinpath(base_path, input_file_path)
+        with open(file_path, "wb") as f:
             f.write(input_file.file.read())
 
-        time_ranges = [("00:01:00", "00:03:23"), ("00:08:00", "00:10:27"), ("00:32:09", "00:42:09")]
-        output_file = extract_segments(input_file_path, time_ranges)
-
-        return {"status": "success", "message": "Video processed successfully", "output_file": output_file}
-
+        time_ranges = [("00:01:00", "00:01:23"), ("00:02:00", "00:02:08"), ("00:02:34", "00:02:43")]
+        video_file = extract_segments(input_file_path, time_ranges)
+        return FileResponse(video_file, media_type='video/mp4')
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
