@@ -1,6 +1,8 @@
 import threading
 
 import pydub
+from aiortc.contrib.media import MediaRecorder
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from streamlit_webrtc import webrtc_streamer
 import streamlit as st
 from llm import LLMClient
@@ -59,7 +61,7 @@ def process_frame_neva(frame):
 def video_frame_callback(frame):
     img = frame.to_ndarray(format="bgr24")
     with buffer_lock:
-        buffer["current_img"] = img
+        buffer["current_img"] = frame.to_ndarray(format="rgb24")
 
     current_time = time.time()
     last_api_call_time = buffer.get("last_api_call_time", 0)
@@ -84,12 +86,26 @@ with col2:
 
 if "audio_buffer" not in st.session_state:
     st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
+if "video_capturing" not in st.session_state:
+    st.session_state["video_capturing"] = []
 
+# video_frames = []
 while webrtc_ctx.state.playing:
     with buffer_lock:
         buffercontainer.empty()
+        # video_stream = cv2.VideoCapture(0)
+        # ret, frame = video_stream.read()
+        # # Add the frame to the list
+        # if ret:
+        #     # video_frames.append(frame)
+        #     st.session_state["video_capturing"].append(frame)
+        # frame = webrtc_ctx.read_video_frame()
+        # if frame is not None:
+        #     video_frames.append(frame)
         # get the new summary
         current_img = buffer["current_img"]
+        if current_img is not None:
+            st.session_state["video_capturing"].append(current_img)
         if buffer["data_stream"]:
             try:
                 buffer["current_buffer"].append(next(buffer["data_stream"]).content)
@@ -106,11 +122,62 @@ while webrtc_ctx.state.playing:
             container.image(current_img, channels="BGR")
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
+video_frames = st.session_state['video_capturing']
+if len(video_frames) > 0:
+        print(len(video_frames))
+        clip = ImageSequenceClip(video_frames, fps=30)
+            # Save the video
+        clip.write_videofile("recorded_video.mp4", codec="libx264", fps=30)
+        st.info("Video saved as 'recorded_video.mp4'")
 # if not webrtc_ctx.state.playing and len(audio_buffer) > 0:
-st.info("Writing wav to disk")
-pydub.AudioSegment.converter = '/opt/homebrew/bin/ffmpeg'
-audio_file = audio_buffer.export("temp.wav", format="wav")
-audio_file.close()
+# st.info("Writing wav to disk")
+# pydub.AudioSegment.converter = '/opt/homebrew/bin/ffmpeg'
+# audio_file = audio_buffer.export("temp.wav", format="wav")
+# audio_file.close()
+# video_stream.release()
+# Convert frames to video
+# while not webrtc_ctx.state.playing:
+#     # with buffer_lock:
+#         if len(video_frames) > 0:
+#             print(len(video_frames))
+#             clip = ImageSequenceClip(video_frames, fps=30)
+#             # Save the video
+#             clip.write_videofile("recorded_video.mp4", codec="libx264", fps=30)
+#             st.info("Video saved as 'recorded_video.mp4'")
 # auido_file = audio_buffer.export("temp.mp3", format="mp3")
 # audio_buffer.export("temp.ogg", format="ogg")
 # audio_buffer.export("temp.raw", format="raw")
+#
+#
+# import asyncio
+# import io
+# import aiofiles
+#
+#
+# async def record_video(webrtc_ctx, output_file):
+#     local_stream = webrtc_ctx.local_streams[0]
+#     video_track = local_stream.get_video_tracks()[0]
+#
+#     media_recorder = MediaRecorder(video_track)
+#     await media_recorder.start(60)  # Record for 60 seconds, adjust as needed
+#
+#     chunks = []
+#     while media_recorder.state == "recording":
+#         chunk = await media_recorder.get_chunk()
+#         chunks.append(chunk)
+#
+#     await media_recorder.stop()
+#
+#     blob = io.BytesIO()
+#     for chunk in chunks:
+#         blob.write(chunk.to_array_buffer())
+#     blob.seek(0)
+#
+#     async with aiofiles.open(output_file, 'wb') as f:
+#         while True:
+#             data = await blob.read(8192)
+#             if not data:
+#                 break
+#             await f.write(data)
+#
+# asyncio.run(record_video(webrtc_ctx, 'recorded_video.mp4'))
