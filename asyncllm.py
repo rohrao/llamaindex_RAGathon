@@ -1,4 +1,6 @@
 import threading
+
+import pydub
 from streamlit_webrtc import webrtc_streamer
 import streamlit as st
 from llm import LLMClient
@@ -80,6 +82,9 @@ with col1:
 with col2:
     buffercontainer = st.empty()
 
+if "audio_buffer" not in st.session_state:
+    st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
+
 while webrtc_ctx.state.playing:
     with buffer_lock:
         buffercontainer.empty()
@@ -100,3 +105,12 @@ while webrtc_ctx.state.playing:
         if current_img is not None:
             container.image(current_img, channels="BGR")
     time.sleep(0.1)
+audio_buffer = st.session_state["audio_buffer"]
+# if not webrtc_ctx.state.playing and len(audio_buffer) > 0:
+st.info("Writing wav to disk")
+pydub.AudioSegment.converter = '/opt/homebrew/bin/ffmpeg'
+audio_file = audio_buffer.export("temp.wav", format="wav")
+audio_file.close()
+# auido_file = audio_buffer.export("temp.mp3", format="mp3")
+# audio_buffer.export("temp.ogg", format="ogg")
+# audio_buffer.export("temp.raw", format="raw")
