@@ -1,5 +1,5 @@
 # Follow https://github.com/ml-explore/mlx-examples/tree/main/whisper to install mlx w/ whisper
-# The model weight and config.json should be model/
+# The following model weight and config.json should be in "model/" directory
 # !wget https://huggingface.co/mlx-community/whisper-medium.en-mlx/resolve/main/config.json?download=true
 # !wget https://huggingface.co/mlx-community/whisper-medium.en-mlx/resolve/main/weights.npz?download=true
 
