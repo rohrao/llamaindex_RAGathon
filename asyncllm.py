@@ -13,14 +13,21 @@ import cv2
 
 # Streamlit configuration
 st.set_page_config(layout="wide")
-st.title("Livestream Copilot")
+st.title("Stream Lens Copilot")
 if "query" not in st.session_state:
     st.session_state.image_query=""
+
+if "video_on" not in st.session_state:
+    st.session_state.video_on = False
+
+if "summary" not in st.session_state:
+    st.session_state.summary = ""
 
 neva_22b = LLMClient(model_name="neva_22b")
 mixtral = LLMClient(model_name="mixtral_8x7b")
 
 buffer = {"current_img": None, "data_stream": None, "current_buffer": [], "summarization_stream": None, "summary": "", "last_api_call_time": 0}
+start_time = time.time()
 buffer_lock = threading.Lock()
 
 # Function to add text to the top right corner of the image
@@ -54,7 +61,7 @@ def process_frame_neva(frame, input_summary=""):
     with buffer_lock:
         buffer["data_stream"] = image_description_stream
         # Invoke summarization model on modified function
-        summarization_stream = mixtral.chat_with_prompt(system_prompt="Your task is to summarize the content of a video stream. You will be given the summarization so far, and the new content to be incorporated. Provide only a single paragraph summary as a response. Do not reply with anything else.", prompt=" ".join(buffer["current_buffer"]))
+        summarization_stream = mixtral.chat_with_prompt(system_prompt="Your task is to summarize the content of a video stream. You will be given the summarization so far, and the new content to be incorporated. Provide a single paragraph summary as a response. Do not reply with anything else. If the input is empty, respond with nothing.", prompt=" ".join(buffer["current_buffer"]))
         buffer["summarization_stream"] = summarization_stream
 
 def video_frame_callback(frame):
@@ -65,17 +72,19 @@ def video_frame_callback(frame):
     current_time = time.time()
     last_api_call_time = buffer.get("last_api_call_time", 0)
     elapsed_time = current_time - last_api_call_time
-    if elapsed_time > 5:
+    if elapsed_time > 5 and current_time - start_time > 5:
         process_frame_neva(frame, buffer["summary"])
         with buffer_lock:
             buffer["current_buffer"] = []
             buffer["last_api_call_time"] = current_time
     return frame
 
-webrtc_ctx = webrtc_streamer(
-    key="example",
-    video_frame_callback=video_frame_callback)
-
+with st.sidebar:
+    st.image("logo.png")
+    st.title("Stream Lens")
+    webrtc_ctx = webrtc_streamer(
+        key="example",
+        video_frame_callback=video_frame_callback)
 col1, col2 = st.columns(2)
 with col1:
     container = st.empty()
@@ -91,6 +100,7 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
+    st.session_state.video_on = True
     with buffer_lock:
         buffercontainer.empty()
         # get the new summary
@@ -107,6 +117,7 @@ while webrtc_ctx.state.playing:
             try:
                 buffer["summary"] += next(buffer["summarization_stream"])
                 buffercontainer.write(buffer["summary"])
+                st.session_state.summary = buffer["summary"]
             except StopIteration:
                 pass
         if current_img is not None:
@@ -114,8 +125,56 @@ while webrtc_ctx.state.playing:
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
-if len(video_frames) > 0:
-        clip = ImageSequenceClip(video_frames, fps=30)
-        # Save the video
-        clip.write_videofile("recorded_video.mp4", codec="libx264", fps=30)
-        st.info("Video saved as 'recorded_video.mp4'")
+if not webrtc_ctx.state.playing:
+    st.session_state.video_on = False
+# if len(video_frames) > 0:
+#         clip = ImageSequenceClip(video_frames[1:-1], fps=20)
+#         # Save the video
+#         clip.write_videofile("recorded_video.mp4", codec="libx264", fps=20)
+#         st.info("Video saved as 'recorded_video.mp4'")
+
+# chat = st.checkbox("Chat with the stream")
+highlights = st.button("Generate highlights video")
+if not st.session_state.video_on:
+    st.subheader("Chat with your AI Assistant, Stream Lens!")
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
+
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", f"You are a helpful AI assistant named StreamLens. You have the ability to answer questions about video streams. You will respond to questions about the live video that the user just watched. If something is out of context, you will refrain from replying and politely decline to respond to the user. The video summary until this point is: {st.session_state.summary}. Note that if this is empty or blank, then please inform the user that they need to watch the streaming video before they can use the chatbot interface."), ("user", "{input}")]
+    )
+    user_input = st.chat_input("Can you tell me what happened in the video?")
+    llm = LLMClient(model_name="mixtral_8x7b").llm
+
+    chain = prompt_template | llm | StrOutputParser()
+
+    if user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        # retriever = vectorstore.as_retriever()
+        # docs = retriever.get_relevant_documents(user_input)
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        context = ""
+        # for doc in docs:
+            # context += doc.page_content + "\n\n"
+        st.write(buffer["summary"])
+        augmented_user_input = f"Question from user: " + user_input + "\n"
+
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            full_response = ""
+
+            for response in chain.stream({"input": augmented_user_input}):
+                full_response += response
+                message_placeholder.markdown(full_response + "▌")
+            message_placeholder.markdown(full_response)
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
