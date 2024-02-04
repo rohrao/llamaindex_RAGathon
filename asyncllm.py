@@ -60,6 +60,7 @@ def video_frame_callback(frame):
     elapsed_time = current_time - last_api_call_time
     if elapsed_time > 5:
         with buffer_lock:
+            buffer["current_buffer"] = []
             buffer["last_api_call_time"] = current_time
         process_frame_neva(frame)
     return frame
@@ -77,7 +78,8 @@ while webrtc_ctx.state.playing:
         current_img = buffer["current_img"]
         if buffer["data_stream"]:
             try:
-                add_text_to_image(current_img, next(buffer["data_stream"]).content)
+                buffer["current_buffer"].append(next(buffer["data_stream"]).content)
+                add_text_to_image(current_img, " ".join(buffer["current_buffer"]))
             except StopIteration:
                 pass
         if current_img is not None:
