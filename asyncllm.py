@@ -117,7 +117,7 @@ while webrtc_ctx.state.playing:
                 pass
         if current_img is not None:
             container.image(current_img, channels="RGB")
-
+    
     if len(buffer['summary'])>1024:
         currenttz = pytz.timezone("America/Los_Angeles") 
         currenttime = datetime.now(currenttz)
@@ -125,7 +125,7 @@ while webrtc_ctx.state.playing:
         metadata = {'tz': currenttimestamp}
         ingest_pipeline_astra_db(buffer["summary"], metadata=metadata, _async=False, collection_name='test_collection',run_async=True)
         st.write(buffer['summary'])
-        buffer['summary']=st.empty
+        buffer['summary']=""
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
