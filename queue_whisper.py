@@ -5,11 +5,17 @@ from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 from pydub import AudioSegment
 import queue, pydub, tempfile, whisper, os, time
+import asyncio
+import httpx
+import requests
+import json
+from pydantic import BaseModel
 
-audio_model = whisper.load_model("base")
+audio_model = whisper.load_model("tiny")
 
 def save_audio(audio_segment: AudioSegment, base_filename: str) -> None:
-    filename = f"{base_filename}_{int(time.time())}.wav"
+    cwd = os.getcwd()
+    filename = f"{cwd}/audio/{base_filename}_{int(time.time())}.wav"
     audio_segment.export(filename, format="wav")
     return filename
 
@@ -20,6 +26,17 @@ def transcribe(audio_segment: AudioSegment):
     print(answer["text"])
     # st.write(answer["text"])
     return answer["text"]
+
+class AudioData(BaseModel):
+    audio_file_path: str
+def mlx_transcribe(audio_segment):
+    current_filename = save_audio(audio_segment, "debug_audio")
+    
+    # print(current_filename)
+    response = requests.post("http://localhost:8000/transcribe_v2", json={"audio_file_path": current_filename})
+    # print(response.json())
+    print(response.json().get('transcription', ''))
+    return response.json().get('transcription', '')
 
 def add_frame_to_chunk(audio_frame, sound_chunk):
     sound = pydub.AudioSegment(
@@ -69,12 +86,14 @@ def app_sst(timeout=3):
                 sound_chunk = add_frame_to_chunk(audio_frame, sound_chunk)
 
             if len(sound_chunk) > 0:
-                text = transcribe(sound_chunk)
+                # text = transcribe(sound_chunk)
+                text = mlx_transcribe(sound_chunk)
                 st.write(text)
         else:
             st.write("Stopping.")
             if len(sound_chunk) > 0:
-                text = transcribe(sound_chunk.raw_data)
+                # text = transcribe(sound_chunk.raw_data)
+                text = mlx_transcribe(sound_chunk.raw_data)
                 st.write(text)
             break
 
