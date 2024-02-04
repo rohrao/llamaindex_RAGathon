@@ -25,6 +25,7 @@ neva_22b = LLMClient(model_name="neva_22b")
 mixtral = LLMClient(model_name="mixtral_8x7b")
 
 buffer = {"current_img": None, "data_stream": None, "current_buffer": [], "summarization_stream": None, "summary": "", "last_api_call_time": 0}
+audio_chunks_buffer = []
 buffer_lock = threading.Lock()
 
 # Function to add text to the top right corner of the image
@@ -138,6 +139,8 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
+    text_payload = " ".join(audio_chunks_buffer)
+    st.write("Audio transcription = ",text_payload)
     sound_chunk = pydub.AudioSegment.empty()
     if webrtc_ctx.audio_receiver:
         try:
@@ -157,14 +160,16 @@ while webrtc_ctx.state.playing:
         print("sound_chunk=",sound_chunk)
         if len(sound_chunk) > 0:
             text = transcribe(sound_chunk)
+            audio_chunks_buffer.append(text)
             # text = mlx_transcribe(sound_chunk)
-            st.write(text)
+            # st.write(text)
     else:
         st.write("Stopping.")
         if len(sound_chunk) > 0:
             text = transcribe(sound_chunk.raw_data)
+            audio_chunks_buffer.append(text)
             # text = mlx_transcribe(sound_chunk.raw_data)
-            st.write(text)
+            # st.write(text)
         break    
     with buffer_lock:
         buffercontainer.empty()
