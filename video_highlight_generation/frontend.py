@@ -1,48 +1,39 @@
-# main.py
+import streamlit as st
+import requests
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.editor import concatenate_videoclips
-import os
-from typing import List, Tuple
+st.title("Video Upload and Display App")
 
-app = FastAPI()
+# File upload widget
+uploaded_file = st.file_uploader("Upload a video file", type=["mp4", "avi", "mov"])
 
-origins = ["http://localhost", "http://localhost:3000"]  # Add the frontend URL here
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def call_process_video_api(file_content):
+    url = "http://localhost:8000/process_video"
+    files = {"input_file": ("video.mp4", file_content, "video/mp4")}
+    response = requests.post(url, files=files)
+    return response
 
-def extract_segments(input_file: str, segments: List[Tuple[str, str]]) -> str:
-    clips = []
 
-    for start_time, end_time in segments:
-        clip = VideoFileClip(input_file).subclip(start_time, end_time)
-        clips.append(clip)
+if uploaded_file:
+    st.video(uploaded_file)
 
-    final_clip = concatenate_videoclips(clips)
-    
-    output_file = "output.mp4"
-    final_clip.write_videofile(output_file, codec="libx264", audio_codec="aac")
+    if st.button("Process Video"):
+        # Display a progress bar for the video upload
+        progress_bar = st.progress(0)
+        uploaded_percentage = 0
 
-    return output_file
+        # Create a stream buffer to upload the video in chunks
+        with uploaded_file:
+            for chunk in uploaded_file.__iter__():
+                uploaded_percentage += len(chunk) / uploaded_file.size
+                progress_bar.progress(uploaded_percentage)
+            file_content = uploaded_file.getvalue()
 
-@app.post("/process_video")
-async def process_video(input_file: UploadFile = File(...)) -> dict:
-    try:
-        input_file_path = f"uploads/{input_file.filename}"
-        with open(input_file_path, "wb") as f:
-            f.write(input_file.file.read())
+        url = "http://localhost:8000/process_video"
 
-        time_ranges = [("00:01:00", "00:03:23"), ("00:08:00", "00:10:27"), ("00:32:09", "00:42:09")]
-        output_file = extract_segments(input_file_path, time_ranges)
+        response = call_process_video_api(file_content)
 
-        return {"status": "success", "message": "Video processed successfully", "output_file": output_file}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if response.status_code == 200:
+            st.success("Video processed successfully!")
+            st.video(response.content)
+        else:
+            st.error("Error processing video. Please try again.")
