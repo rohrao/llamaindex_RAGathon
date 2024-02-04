@@ -10,6 +10,10 @@ from PIL import Image
 from io import BytesIO
 import base64
 import cv2
+from async_ingest import ingest_pipeline_astra_db
+import pytz
+from datetime import datetime
+import requests
 
 # Streamlit configuration
 st.set_page_config(layout="wide")
@@ -27,8 +31,10 @@ neva_22b = LLMClient(model_name="neva_22b")
 mixtral = LLMClient(model_name="mixtral_8x7b")
 
 buffer = {"current_img": None, "data_stream": None, "current_buffer": [], "summarization_stream": None, "summary": "", "last_api_call_time": 0}
-start_time = time.time()
 buffer_lock = threading.Lock()
+url = "http://localhost:8000/ingest"
+
+
 
 # Function to add text to the top right corner of the image
 def add_text_to_image(image, text, font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, color=(255, 255, 255), thickness=2):
@@ -100,8 +106,8 @@ if "video_capturing" not in st.session_state:
 
 # video_frames = []
 while webrtc_ctx.state.playing:
-    st.session_state.video_on = True
     with buffer_lock:
+        
         buffercontainer.empty()
         # get the new summary
         current_img = buffer["current_img"]
@@ -116,12 +122,26 @@ while webrtc_ctx.state.playing:
         if buffer["summarization_stream"]:
             try:
                 buffer["summary"] += next(buffer["summarization_stream"])
+                buffer["ingest_summary"]+= next(buffer["summarization_stream"]) 
                 buffercontainer.write(buffer["summary"])
                 st.session_state.summary = buffer["summary"]
             except StopIteration:
                 pass
         if current_img is not None:
             container.image(current_img, channels="RGB")
+    
+    if len(buffer["ingest_summary"])>100:
+        currenttz = pytz.timezone("America/Los_Angeles") 
+        currenttime = datetime.now(currenttz)
+        end_imestamp = currenttime.strftime("%Y-%m-%d_%H:%M:%S")
+        metadata = {'end_tz': end_imestamp,'start_tz':start_tz}
+        # ingest_pipeline_astra_db(buffer["ingest_summary"], metadata=metadata, _async=False, collection_name='test_collection',run_async=True)
+        payload = {"text":buffer["ingest_summary"],
+           "metadata":metadata}
+
+        response = requests.post(url, json=payload)
+        buffer["ingest_summary"]=""
+        start_tz = end_imestamp
     time.sleep(0.1)
 audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
