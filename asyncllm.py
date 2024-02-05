@@ -2,7 +2,7 @@ import threading
 
 import pydub
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
-from streamlit_webrtc import webrtc_streamer
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
 import streamlit as st
 from llm import LLMClient
 import time
@@ -14,7 +14,9 @@ from async_ingest import ingest_pipeline_astra_db
 import pytz
 from datetime import datetime
 import requests
-
+import whisper, os
+from pydub import AudioSegment
+import queue
 # Streamlit configuration
 st.set_page_config(layout="wide")
 st.title("Stream Lens Copilot")
@@ -39,7 +41,7 @@ buffer_lock = threading.Lock()
 url = "http://localhost:8000/ingest"
 start_tz = time.time()
 start_time = time.time()
-
+audio_chunks_buffer = []
 
 
 # Function to add text to the top right corner of the image
@@ -52,6 +54,32 @@ def add_text_to_image(image, text, font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=1, 
 
     # Add text to the image
     cv2.putText(image, text, position, font, font_scale, color, thickness)
+
+### whisper section from queue_whisper
+audio_model = whisper.load_model("base")
+def save_audio(audio_segment: AudioSegment, base_filename: str):
+    cwd = os.getcwd()
+    filename = f"{cwd}/audio/{base_filename}_{int(time.time())}.wav"
+    audio_segment.export(filename, format="wav")
+    return filename
+
+def transcribe(audio_segment: AudioSegment):
+    print("Entered Whisper transcription")
+    current_filename = save_audio(audio_segment, "debug_audio")
+    answer = audio_model.transcribe(current_filename, fp16=False)
+    print(answer["text"])
+    # st.write(answer["text"])
+    return answer["text"]
+
+def add_frame_to_chunk(audio_frame, sound_chunk):
+    sound = pydub.AudioSegment(
+        data=audio_frame.to_ndarray().tobytes(),
+        sample_width=audio_frame.format.bytes,
+        frame_rate=audio_frame.sample_rate,
+        channels=len(audio_frame.layout.channels),
+    )
+    sound_chunk += sound
+    return sound_chunk
 
 def process_frame_neva(frame, input_summary=""):
     # Convert the av.VideoFrame to a NumPy array
@@ -91,12 +119,24 @@ def video_frame_callback(frame):
             buffer["last_api_call_time"] = current_time
     return frame
 
+def handle_queue_empty(sound_chunk):
+    if len(sound_chunk) > 0:
+        text = transcribe(sound_chunk)
+        st.write(text)
+        sound_chunk = pydub.AudioSegment.empty()
+
+    return sound_chunk
+
 with st.sidebar:
     st.image("logo.png")
     st.title("Stream Lens")
     webrtc_ctx = webrtc_streamer(
         key="example",
-        video_frame_callback=video_frame_callback)
+        mode=WebRtcMode.SENDONLY,
+        video_frame_callback=video_frame_callback,
+        audio_receiver_size=1024,
+        media_stream_constraints={"video": True, "audio": True},    
+        )
 col1, col2 = st.columns(2)
 with col1:
     container = st.empty()
@@ -109,10 +149,42 @@ if "audio_buffer" not in st.session_state:
     st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
 if "video_capturing" not in st.session_state:
     st.session_state["video_capturing"] = []
-
+audio_transcript_output = st.empty()
 # video_frames = []
 while webrtc_ctx.state.playing:
     st.session_state.video_on = True
+    text_payload = " ".join(audio_chunks_buffer)
+    audio_transcript_output.write(text_payload)
+    sound_chunk = pydub.AudioSegment.empty()
+    if webrtc_ctx.audio_receiver:
+        try:
+            audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=3)
+        except queue.Empty:
+            st.write("No frame arrived.")
+            sound_chunk = handle_queue_empty(sound_chunk)
+            continue
+        
+        # done to flush out old sound chunks and avoid concatenation and whisper-delays
+        
+        print("audio_frames=",audio_frames)
+        for audio_frame in audio_frames:
+            # this causes continuous concatenation
+            sound_chunk = add_frame_to_chunk(audio_frame, sound_chunk)
+
+        print("sound_chunk=",sound_chunk)
+        if len(sound_chunk) > 0:
+            text = transcribe(sound_chunk)
+            audio_chunks_buffer.append(text)
+            # text = mlx_transcribe(sound_chunk)
+            # st.write(text)
+    else:
+        st.write("Stopping.")
+        if len(sound_chunk) > 0:
+            text = transcribe(sound_chunk.raw_data)
+            audio_chunks_buffer.append(text)
+            # text = mlx_transcribe(sound_chunk.raw_data)
+            # st.write(text)
+        break    
     with buffer_lock:
         
         buffercontainer.empty()
@@ -154,6 +226,7 @@ audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
 if not webrtc_ctx.state.playing:
     st.session_state.video_on = False
+    
 # if len(video_frames) > 0:
 #         clip = ImageSequenceClip(video_frames[1:-1], fps=20)
 #         # Save the video
