@@ -1,3 +1,7 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+import asyncio
+import whisper
 from llama_index.embeddings import OpenAIEmbedding
 from llama_index.llms import OpenAI
 from llama_index.ingestion import IngestionPipeline
@@ -18,6 +22,8 @@ from llama_index.llms import LangChainLLM
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 import os
 import asyncio
+
+
 
 token = os.environ['token']
 api_endpoint = os.environ['api_endpoint']
@@ -60,44 +66,37 @@ def create_pipeline_astra_db(llm_type='nvidia',embed_model='local',collection_na
 
     transformations = [
         SentenceSplitter(chunk_size=1024, chunk_overlap=100),
-        TitleExtractor(llm=llm, metadata_mode=MetadataMode.EMBED, num_workers=8),
-        SummaryExtractor(llm=llm, metadata_mode=MetadataMode.EMBED, num_workers=8),
+        # TitleExtractor(llm=llm, metadata_mode=MetadataMode.EMBED, num_workers=8),
+        # SummaryExtractor(llm=llm, metadata_mode=MetadataMode.EMBED, num_workers=8),
         embed_model,
     ]
     # text_splitter = TokenTextSplitter(chunk_size=512)
     return IngestionPipeline(transformations=transformations,vector_store=astra_db_store)
-    # return IngestionPipeline(
-    #     transformations=[text_splitter, embed_model],
-    #     vector_store=astra_db_store)
 
-def ingest_pipeline_astra_db(text,metadata=None,_async=False,collection_name=None,run_async=False):
-    if collection_name is not None:
-        pipeline = create_pipeline_astra_db(llm_type='nvidia',collection_name=collection_name)    
-    else:
-        pipeline = create_pipeline_astra_db(llm_type='nvidia')
-    print('Pipeline_loaded')
-    # save
-    # pipeline.persist("./pipeline_storage")
+class AudioData(BaseModel):
+    audio_file_path: str
+pipeline = create_pipeline_astra_db(llm_type='nvidia',collection_name="video_test_collection")
+app = FastAPI()
+@app.get("/status")
+def read_status():
+    return {"status": "running"}    
 
-    # load and restore state
-    # will run instantly due to the cache
-    if metadata:
-        doc = [Document(text=text,metadata=metadata)]
-    else:
-        doc = [Document(text=text)]
-    if run_async:
-        pipeline.arun(doc)
-    else:
-        if _async:
-            # loop = asyncio.get_event_loop()
-            pipeline.arun(documents=doc,num_workers=4)
-        else:
-            nodes = pipeline.run(documents=doc,num_workers=1)
-
-    
-    # pipeline.load("./pipeline_storage")
+@app.post("/transcribe")
+async def transcribe(audio_data:AudioData):
+    return {"transcription": whisper.transcribe(audio_data.audio_file_path)["text"]}
 
 
+@app.post("/transcribe_v2")
+async def transcribe(audio_data:AudioData):
 
-if __name__=='__main__':
-    ingest_pipeline_astra_db("Can you load this in asstra db, astra db is vector store using llama index")
+    return {"transcription": whisper.transcribe(audio_data.audio_file_path,path_or_hf_repo="mlx-community/whisper-medium-mlx")["text"]}
+
+class ingest_data(BaseModel):
+    text: str
+    metadata:dict
+
+@app.post("/ingest")
+def ingest(ingest_data:ingest_data):
+    doc = [Document(text=ingest_data.text,metadata=ingest_data.metadata)]
+    pipeline.run(documents=doc,num_workers=4)
+    return {"Done"}
