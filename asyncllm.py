@@ -64,12 +64,21 @@ def save_audio(audio_segment: AudioSegment, base_filename: str):
     return filename
 
 def transcribe(audio_segment: AudioSegment):
-    print("Entered Whisper transcription")
+    # print("Entered Whisper transcription")
     current_filename = save_audio(audio_segment, "debug_audio")
     answer = audio_model.transcribe(current_filename, fp16=False)
-    print(answer["text"])
+    # print(answer["text"])
     # st.write(answer["text"])
     return answer["text"]
+
+def mlx_transcribe(audio_segment):
+    current_filename = save_audio(audio_segment, "debug_audio")
+    
+    # print(current_filename)
+    response = requests.post("http://localhost:8000/transcribe_v2", json={"audio_file_path": current_filename})
+    # print(response.json())
+    # print(response.json().get('transcription', ''))
+    return response.json().get('transcription', '')
 
 def add_frame_to_chunk(audio_frame, sound_chunk):
     sound = pydub.AudioSegment(
@@ -145,8 +154,8 @@ with col2:
     buffercontainer = st.empty()
 
 # Initializing streamlit session states
-if "audio_buffer" not in st.session_state:
-    st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
+# if "audio_buffer" not in st.session_state:
+#     st.session_state["audio_buffer"] = pydub.AudioSegment.empty()
 if "video_capturing" not in st.session_state:
     st.session_state["video_capturing"] = []
 audio_transcript_output = st.empty()
@@ -154,7 +163,7 @@ audio_transcript_output = st.empty()
 while webrtc_ctx.state.playing:
     st.session_state.video_on = True
     text_payload = " ".join(audio_chunks_buffer)
-    audio_transcript_output.write(text_payload)
+    
     sound_chunk = pydub.AudioSegment.empty()
     if webrtc_ctx.audio_receiver:
         try:
@@ -166,25 +175,28 @@ while webrtc_ctx.state.playing:
         
         # done to flush out old sound chunks and avoid concatenation and whisper-delays
         
-        print("audio_frames=",audio_frames)
+        # print("audio_frames=",audio_frames)
         for audio_frame in audio_frames:
             # this causes continuous concatenation
             sound_chunk = add_frame_to_chunk(audio_frame, sound_chunk)
 
-        print("sound_chunk=",sound_chunk)
+        # print("sound_chunk=",sound_chunk)
         if len(sound_chunk) > 0:
-            text = transcribe(sound_chunk)
+            # text = transcribe(sound_chunk)
+            text = mlx_transcribe(sound_chunk)
             audio_chunks_buffer.append(text)
-            # text = mlx_transcribe(sound_chunk)
+            
             # st.write(text)
     else:
         st.write("Stopping.")
         if len(sound_chunk) > 0:
-            text = transcribe(sound_chunk.raw_data)
-            audio_chunks_buffer.append(text)
-            # text = mlx_transcribe(sound_chunk.raw_data)
+            # text = transcribe(sound_chunk.raw_data)
+            
+            text = mlx_transcribe(sound_chunk.raw_data)
             # st.write(text)
-        break    
+            audio_chunks_buffer.append(text)
+        break  
+      
     with buffer_lock:
         
         buffercontainer.empty()
@@ -209,20 +221,21 @@ while webrtc_ctx.state.playing:
         if current_img is not None:
             container.image(current_img, channels="RGB")
     
-    if len(buffer["ingest_summary"])>100:
+    if len(buffer["ingest_summary"])>10:
+        audio_transcript_output.write(text_payload)
         currenttz = pytz.timezone("America/Los_Angeles") 
         currenttime = datetime.now(currenttz)
         end_imestamp = currenttime.strftime("%Y-%m-%d_%H:%M:%S")
         metadata = {'end_tz': end_imestamp,'start_tz':start_tz}
         # ingest_pipeline_astra_db(buffer["ingest_summary"], metadata=metadata, _async=False, collection_name='test_collection',run_async=True)
-        payload = {"text":buffer["ingest_summary"],
-           "metadata":metadata}
+        payload = {"text":buffer["ingest_summary"],"metadata":metadata}
 
         response = requests.post(url, json=payload)
         buffer["ingest_summary"]=""
         start_tz = end_imestamp
+        
     time.sleep(0.1)
-audio_buffer = st.session_state["audio_buffer"]
+# audio_buffer = st.session_state["audio_buffer"]
 video_frames = st.session_state['video_capturing']
 if not webrtc_ctx.state.playing:
     st.session_state.video_on = False
