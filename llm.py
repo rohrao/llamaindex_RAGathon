@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage
 
 class NvidiaLLM:
     def __init__(self, model_name):
-        self.llm = ChatNVIDIA(model=model_name)
+        self.llm = ChatNVIDIA(model=model_name,temperature=0.1)
 
 class LocalLLM:
     def __init__(self, model_path):

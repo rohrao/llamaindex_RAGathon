@@ -28,7 +28,7 @@ if "summary" not in st.session_state:
     st.session_state.summary = ""
 
 neva_22b = LLMClient(model_name="neva_22b")
-mixtral = LLMClient(model_name="mixtral_8x7b")
+mixtral = LLMClient(model_name="steerlm_llama_70b")
 
 buffer = {"current_img": None, 
           "data_stream": None,
@@ -67,13 +67,18 @@ def process_frame_neva(frame, input_summary=""):
     b64_string = base64.b64encode(buffered.getvalue()).decode("utf-8")
     
     # Invoke NeVA-22B model using the modified function
-    image_description_stream = neva_22b.streaming_multimodal_invoke(f"Continue describing what is happening in this image in a single sentence. Always highlight if something new is happening in the scene. Do not provide any more information if it is not needed. The summary of events thus far is as follows: {input_summary}", b64_string)
+    image_description_stream = neva_22b.streaming_multimodal_invoke(f"""Continue describing what is happening in this image in a single sentence.
+                                                                     Always highlight if something new is happening in the scene. 
+                                                                    Do not provide any more information if it is not needed. 
+                                                                    The summary of events thus far is as follows: {input_summary}""", b64_string)
     
     # Update the buffer data stream
     with buffer_lock:
         buffer["data_stream"] = image_description_stream
         # Invoke summarization model on modified function
-        summarization_stream = mixtral.chat_with_prompt(system_prompt="Your task is to summarize the content of a video stream. You will be given the summarization so far, and the new content to be incorporated. Provide only a single paragraph summary as a response. Do not reply with anything else.", prompt=" ".join(buffer["current_buffer"]))
+        summarization_stream = mixtral.chat_with_prompt(system_prompt="""Your task is to summarize the content of a video stream.
+                                                         You will be given the summarization so far, and the new content to be incorporated.
+                                                         Provide only a single paragraph summary as a response. Do not reply with anything else.""", prompt=" ".join(buffer["current_buffer"]))
         buffer["summarization_stream"] = summarization_stream
 
 def video_frame_callback(frame):
